@@ -1,0 +1,13 @@
+provider: nim
+
+providers:
+  nim:
+    model: meta/llama-3.3-70b-instruct
+  openrouter:
+    model: anthropic/claude-3.5-sonnet
+  ollama:
+    model: qwen2.5-coder:32b
+  lmstudio:
+    model: local-model
+  mock:
+    model: mock-model
