@@ -17,7 +17,10 @@ def extract_json_object(text: str) -> dict[str, Any]:
         pass
 
     candidate = _extract_balanced_json(cleaned, "{", "}")
-    value = json.loads(candidate)
+    try:
+        value = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON object: {exc}") from exc
 
     if not isinstance(value, dict):
         raise ValueError("Extracted JSON value is not an object")
@@ -36,7 +39,10 @@ def extract_json_array(text: str) -> list[Any]:
         pass
 
     candidate = _extract_balanced_json(cleaned, "[", "]")
-    value = json.loads(candidate)
+    try:
+        value = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON array: {exc}") from exc
 
     if not isinstance(value, list):
         raise ValueError("Extracted JSON value is not an array")
@@ -47,25 +53,12 @@ def extract_json_array(text: str) -> list[Any]:
 def _strip_markdown_fences(text: str) -> str:
     cleaned = text.strip()
 
-    cleaned = re.sub(
-        r"^```(?:json)?\s*",
-        "",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r"\s*```$", "", cleaned)
+    fence_pattern = r"^```(?:json)?\s*(.*?)\s*```$"
+    match = re.match(fence_pattern, cleaned, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
 
-    # Handles accidental responses like:
-    # json
-    # {"a": 1}
-    cleaned = re.sub(
-        r"^json\s*\n",
-        "",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-
-    return cleaned.strip()
+    return cleaned
 
 
 def _extract_balanced_json(text: str, opening: str, closing: str) -> str:
@@ -99,8 +92,7 @@ def _extract_balanced_json(text: str, opening: str, closing: str) -> str:
             depth += 1
         elif char == closing:
             depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
 
-        if depth == 0:
-            return text[start:index + 1]
-
-    raise ValueError("No balanced JSON value found")
+    raise ValueError(f"No balanced JSON ending with {closing!r} found")

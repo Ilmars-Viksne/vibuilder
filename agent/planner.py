@@ -14,11 +14,23 @@ class Planner:
             "Do not include any prose or markdown formatting."
         )
 
-        response = provider.chat([{"role": "user", "content": prompt}])
+        response = provider.chat(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a precise software project planner.",
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ]
+        )
+
         plan = extract_json_array(response)
 
         if not all(isinstance(step, str) for step in plan):
             raise ValueError("Planner response must be a JSON list of strings")
 
-        logger.info("Created plan with %s steps", len(plan))
+        logger.info("Created plan with %d steps", len(plan))
         return plan

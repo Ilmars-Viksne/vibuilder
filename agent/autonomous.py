@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 
@@ -30,73 +31,63 @@ class AutonomousAgent:
         self.tester = tester
 
     def run(self, goal: str, max_steps: int = 50) -> dict[str, Any]:
-        logger.info("Starting task: %s", goal)
+        logger.info("Starting autonomous run")
+        logger.info("Goal: %s", goal)
 
         plan = self.planner.create_plan(self.provider, goal)
         architecture = self.architect.design(self.provider, goal)
 
-        feedback = "No feedback yet."
-        final_action = None
+        last_feedback: Any = "<no feedback yet>"
+        finished = False
 
-        for step in range(1, max_steps + 1):
+        for step_index in range(1, max_steps + 1):
             context = self._build_context(
                 goal=goal,
                 plan=plan,
                 architecture=architecture,
-                feedback=feedback,
+                last_feedback=last_feedback,
             )
 
             try:
                 action = self.coder.next_action(self.provider, context)
             except Exception as exc:
-                feedback = f"Failed to parse or validate action: {exc}"
-                self.memory.record(
-                    action={"action": "invalid"},
-                    result={"error": feedback},
-                )
+                logger.exception("Failed to produce valid next action")
+                last_feedback = {
+                    "success": False,
+                    "error": f"Failed to produce valid next action: {exc}",
+                }
                 continue
 
-            final_action = action
+            result = self.executor.execute(action)
+            self.memory.add(action, result)
+            last_feedback = result
 
-            if action["action"] == "finish":
-                self.memory.record(
-                    action=action,
-                    result={"status": "finished"},
-                )
+            if action.get("action") == "finish" or result.get("finished"):
+                finished = True
                 break
 
-            result = self.executor.execute(action)
-            self.memory.record(action=action, result=result)
+        review = self.reviewer.review(self.provider, self.memory.to_list())
 
-            feedback = self._format_feedback(result)
-
-            if action["action"] == "run_tests":
-                test_review = self.tester.evaluate(self.provider, result)
-                feedback = f"{feedback}\n\nTester feedback:\n{test_review}"
-
-        review = self.reviewer.review(
-            self.provider,
-            list(self.memory.history),
-        )
-
-        return {
+        final_result = {
             "goal": goal,
+            "finished": finished,
+            "steps_used": self.memory.current_step,
             "plan": plan,
             "architecture": architecture,
-            "last_action": final_action,
             "review": review,
-            "history": list(self.memory.history),
+            "history": self.memory.to_list(),
         }
+
+        logger.info("Autonomous run complete. finished=%s", finished)
+        return final_result
 
     def _build_context(
         self,
         goal: str,
         plan: list[str],
         architecture: str,
-        feedback: str,
+        last_feedback: Any,
     ) -> str:
-        plan_text = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(plan))
-
         return f"""
 You are an autonomous coding agent.
 
@@ -104,7 +95,7 @@ Goal:
 {goal}
 
 Plan:
-{plan_text}
+{json.dumps(plan, indent=2)}
 
 Architecture:
 {architecture}
@@ -116,7 +107,7 @@ Memory Recent Actions:
 {self.memory.summary(limit=10)}
 
 Last Feedback:
-{feedback}
+{self._format_feedback(last_feedback)}
 
 Return ONLY valid JSON matching one allowed action schema.
 Do not include Markdown fences like ```json.
@@ -136,5 +127,5 @@ Allowed actions:
 
     def _format_feedback(self, result: Any) -> str:
         if isinstance(result, dict):
-            return "\n".join(f"{k}: {v}" for k, v in result.items())
+            return "\n".join(f"{key}: {value}" for key, value in result.items())
         return str(result)

@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 class TreeBuilder:
     SKIP_PARTS = {
         "__pycache__",
@@ -6,22 +9,27 @@ class TreeBuilder:
         ".vibuilder_memory.json",
     }
 
-    @staticmethod
-    def build(workspace) -> str:
-        root = workspace.root
+    @classmethod
+    def build(cls, workspace) -> str:
+        root = Path(workspace.root)
 
         if not root.exists():
-            return "(empty workspace)"
+            return "<workspace does not exist>"
 
-        items = []
+        lines: list[str] = []
 
         for path in sorted(root.rglob("*")):
-            relative = path.relative_to(root)
-
-            if any(part in TreeBuilder.SKIP_PARTS for part in relative.parts):
+            try:
+                relative = path.relative_to(root)
+            except ValueError:
                 continue
 
-            suffix = "/" if path.is_dir() else ""
-            items.append(f"{relative}{suffix}")
+            if any(part in cls.SKIP_PARTS for part in relative.parts):
+                continue
 
-        return "\n".join(items) if items else "(empty workspace)"
+            depth = len(relative.parts) - 1
+            indent = "  " * depth
+            suffix = "/" if path.is_dir() else ""
+            lines.append(f"{indent}{relative.name}{suffix}")
+
+        return "\n".join(lines) if lines else "<empty>"

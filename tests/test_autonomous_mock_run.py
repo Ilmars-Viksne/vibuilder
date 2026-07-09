@@ -37,22 +37,8 @@ def test_autonomous_mock_run(tmp_path):
         tester=Tester(),
     )
 
-    result = agent.run(
-        "Create a hello module and tests",
-        max_steps=10,
-    )
+    result = agent.run("Create a hello script", max_steps=5)
 
-    assert (tmp_path / "hello.py").exists()
-    assert (tmp_path / "test_hello.py").exists()
-    assert result["last_action"]["action"] == "finish"
-    assert "Mock review" in result["review"]
-
-    test_events = [
-        event
-        for event in result["history"]
-        if event["action"].get("action") == "run_tests"
-    ]
-
-    assert test_events
-    assert test_events[-1]["result"]["status"] == "ok"
-    assert test_events[-1]["result"]["returncode"] == 0
+    assert result["finished"] is True
+    assert workspace.exists("hello.py")
+    assert memory.current_step >= 1

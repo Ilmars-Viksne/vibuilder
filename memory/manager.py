@@ -13,46 +13,42 @@ class MemoryManager:
         self,
         persist_path: str | Path = "agent_workspace/.vibuilder_memory.json",
     ):
-        self.history = deque(maxlen=50)
+        self.history: deque[dict[str, Any]] = deque(maxlen=50)
         self.persist_path = Path(persist_path)
         self.current_step = 0
         self._load()
 
-        if self.history:
-            last_event = self.history[-1]
-            self.current_step = last_event.get("step", len(self.history))
-
-    def record(self, action: dict, result: Any) -> dict:
+    def add(self, action: dict[str, Any], result: dict[str, Any]) -> None:
         self.current_step += 1
 
-        event = {
+        entry = {
             "step": self.current_step,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "action": action,
             "result": result,
         }
 
-        self.history.append(event)
+        self.history.append(entry)
         self._save()
-        return event
 
     def summary(self, limit: int = 10) -> str:
-        if not self.history:
-            return "(no memory yet)"
-
         recent = list(self.history)[-limit:]
-        lines = []
 
-        for event in recent:
-            action = event.get("action", {})
-            result = event.get("result", {})
+        if not recent:
+            return "<no previous actions>"
+
+        lines = []
+        for entry in recent:
+            action_name = entry.get("action", {}).get("action", "<unknown>")
+            success = entry.get("result", {}).get("success")
             lines.append(
-                f"Step {event.get('step')}: "
-                f"{action.get('action')} -> "
-                f"{self._shorten(result)}"
+                f"Step {entry.get('step')}: {action_name}, success={success}"
             )
 
         return "\n".join(lines)
+
+    def to_list(self) -> list[dict[str, Any]]:
+        return list(self.history)
 
     def _load(self) -> None:
         if not self.persist_path.exists():
@@ -60,21 +56,22 @@ class MemoryManager:
 
         try:
             data = json.loads(self.persist_path.read_text(encoding="utf-8"))
-            for event in data:
-                self.history.append(event)
+        except json.JSONDecodeError:
+            logger.warning("Memory file is invalid JSON; starting fresh")
+            return
 
-        except Exception as exc:
-            logger.warning("Failed to load memory file: %s", exc)
+        self.current_step = int(data.get("current_step", 0))
+
+        for entry in data.get("history", []):
+            self.history.append(entry)
 
     def _save(self) -> None:
         self.persist_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "current_step": self.current_step,
+            "history": list(self.history),
+        }
         self.persist_path.write_text(
-            json.dumps(list(self.history), indent=2, ensure_ascii=False),
+            json.dumps(data, indent=2),
             encoding="utf-8",
         )
-
-    def _shorten(self, value: Any, max_length: int = 300) -> str:
-        text = json.dumps(value, ensure_ascii=False, default=str)
-        if len(text) > max_length:
-            return text[:max_length] + "..."
-        return text

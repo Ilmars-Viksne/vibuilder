@@ -20,49 +20,75 @@ class ToolExecutor:
 
         try:
             if action_name == "create_folder":
-                return self.workspace.create_folder(action["path"])
+                path = self.workspace.create_folder(action["path"])
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "path": str(path),
+                }
 
             if action_name == "create_file":
-                return self.workspace.create_file(
-                    action["path"],
-                    action["content"],
-                )
+                path = self.workspace.write_file(action["path"], action["content"])
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "path": str(path),
+                }
 
             if action_name == "edit_file":
-                return self.workspace.write_file(
-                    action["path"],
-                    action["content"],
-                )
+                path = self.workspace.write_file(action["path"], action["content"])
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "path": str(path),
+                }
 
             if action_name == "replace_text":
-                return self.workspace.replace_text(
+                path = self.workspace.replace_text(
                     action["path"],
                     action["search"],
                     action["replace"],
                 )
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "path": str(path),
+                }
 
             if action_name == "run_python":
-                script = self.workspace.resolve(action["path"])
-                return self.runner.run(script)
+                script_path = self.workspace.resolve(action["path"])
+                result = self.runner.run(script_path)
+                result["action"] = action_name
+                return result
 
             if action_name == "run_tests":
-                return self.tests.run_tests(self.workspace.root)
+                result = self.tests.run_tests(self.workspace.root)
+                result["action"] = action_name
+                return result
 
             if action_name == "git_init":
-                return self.git.init()
+                result = self.git.init()
+                result["action"] = action_name
+                return result
 
             if action_name == "git_commit":
-                return self.git.commit(action["message"])
+                result = self.git.commit(action["message"])
+                result["action"] = action_name
+                return result
 
             if action_name == "finish":
-                return {"status": "finished"}
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "finished": True,
+                }
 
-            raise ValueError(f"Unsupported action: {action_name}")
+            raise ValueError(f"Unhandled action: {action_name}")
 
         except Exception as exc:
             logger.exception("Action failed: %s", action_name)
             return {
-                "status": "error",
+                "success": False,
                 "action": action_name,
                 "error": str(exc),
             }

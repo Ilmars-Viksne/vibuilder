@@ -1,13 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Any, Type
+from typing import Any, Callable, Type
 
 
 class ProviderRegistry:
     _registry: dict[str, Type["BaseProvider"]] = {}
 
     @classmethod
-    def register(cls, name: str):
-        def decorator(provider_cls: Type["BaseProvider"]):
+    def register(cls, name: str) -> Callable[[Type["BaseProvider"]], Type["BaseProvider"]]:
+        if not name or not isinstance(name, str):
+            raise ValueError("Provider name must be a non-empty string")
+
+        def decorator(provider_cls: Type["BaseProvider"]) -> Type["BaseProvider"]:
             cls._registry[name] = provider_cls
             return provider_cls
 
@@ -16,12 +19,8 @@ class ProviderRegistry:
     @classmethod
     def create(cls, name: str, **kwargs: Any) -> "BaseProvider":
         if name not in cls._registry:
-            available = ", ".join(sorted(cls._registry))
-            raise ValueError(
-                f"Provider '{name}' not found. "
-                f"Available providers: {available}"
-            )
-
+            available = ", ".join(sorted(cls._registry)) or "<none>"
+            raise ValueError(f"Unknown provider: {name}. Available providers: {available}")
         return cls._registry[name](**kwargs)
 
     @classmethod
@@ -34,9 +33,5 @@ class BaseProvider(ABC):
         self.model = model
 
     @abstractmethod
-    def chat(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float = 0.2,
-    ) -> str:
+    def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
         raise NotImplementedError

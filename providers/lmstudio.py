@@ -18,11 +18,7 @@ class LMStudioProvider(BaseProvider):
             api_key=api_key,
         )
 
-    def chat(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float = 0.2,
-    ) -> str:
+    def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
