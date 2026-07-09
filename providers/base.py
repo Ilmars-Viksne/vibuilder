@@ -1,22 +1,31 @@
 from abc import ABC, abstractmethod
+from typing import Any, Dict, Type
 
 class ProviderRegistry:
-    _registry = {}
+    _registry: Dict[str, Type['BaseProvider']] = {}
 
     @classmethod
-    def register(cls, name):
-        def wrapper(wrapped_class):
-            cls._registry[name] = wrapped_class
-            return wrapped_class
-        return wrapper
+    def register(cls, name: str):
+        def decorator(provider_cls: Type['BaseProvider']):
+            cls._registry[name] = provider_cls
+            return provider_cls
+        return decorator
 
     @classmethod
-    def create(cls, name, **kwargs):
+    def create(cls, name: str, **kwargs: Any) -> 'BaseProvider':
         if name not in cls._registry:
-            raise ValueError(f"Provider '{name}' not found. Available: {list(cls._registry.keys())}")
+            available = ", ".join(sorted(cls._registry.keys()))
+            raise ValueError(f"Provider '{name}' not found. Available providers: {available}")
         return cls._registry[name](**kwargs)
 
+    @classmethod
+    def available(cls):
+        return sorted(cls._registry.keys())
+
 class BaseProvider(ABC):
+    def __init__(self, model: str, **kwargs: Any):
+        self.model = model
+
     @abstractmethod
-    def chat(self, messages, temperature=0.2):
+    def chat(self, messages: list, temperature: float = 0.2) -> str:
         pass

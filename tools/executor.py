@@ -9,43 +9,127 @@ class ToolExecutor:
         self.tests = tests
         self.git = git
 
-    def execute(self, action):
-        kind = action.get("action")
-        logger.debug(f"Executing action: {kind} with parameters: {action}")
+    def execute(self, action: dict) -> dict:
+        """
+        Validates and dispatches the action to the appropriate handler.
+        Returns a consistent result envelope.
+        """
+        if not isinstance(action, dict):
+            return {
+                "ok": False,
+                "error": f"Invalid action format: expected dict, got {type(action).__name__}"
+            }
+
+        name = action.get("action")
+        if not name:
+            return {
+                "ok": False,
+                "error": "Missing 'action' field in request"
+            }
+
+        handlers = {
+            "create_folder": self._create_folder,
+            "create_file": self._create_file,
+            "edit_file": self._edit_file,
+            "replace_text": self._replace_text,
+            "run_python": self._run_python,
+            "run_tests": self._run_tests,
+            "git_init": self._git_init,
+            "git_commit": self._git_commit,
+            "finish": self._finish,
+        }
+
+        handler = handlers.get(name)
+        if not handler:
+            return {
+                "ok": False,
+                "action": name,
+                "error": f"Unknown action: {name}"
+            }
 
         try:
-            if kind == "create_folder":
-                self.workspace.create_folder(action["path"])
-                return "folder created"
+            result = handler(action)
+            if isinstance(result, dict) and "ok" in result:
+                return result
 
-            if kind == "create_file":
-                self.workspace.create_file(action["path"], action.get("content", ""))
-                return "file created"
-
-            if kind == "edit_file":
-                self.workspace.edit_file(action["path"], action.get("content", ""))
-                return "file edited"
-
-            if kind == "replace_text":
-                self.workspace.replace_text(action["path"], action["search"], action["replace"])
-                return "text replaced"
-
-            if kind == "run_python":
-                return self.runner.run(self.workspace.resolve(action["path"]))
-
-            if kind == "run_tests":
-                return self.tests.run_tests(self.workspace.root)
-
-            if kind == "git_init":
-                return self.git.init().stdout or "git initialized"
-
-            if kind == "git_commit":
-                return self.git.commit(action.get("message", "Commit by agent")).stdout or "committed"
-
-            if kind == "finish":
-                return "completed"
-
-            raise ValueError(f"Unknown action: {kind}")
+            return {
+                "ok": True,
+                "action": name,
+                "message": str(result),
+                "data": result if isinstance(result, (dict, list)) else {}
+            }
         except Exception as e:
-            logger.error(f"Error executing action {kind}: {e}")
-            return {"error": str(e)}
+            logger.error(f"Error executing action {name}: {e}")
+            return {
+                "ok": False,
+                "action": name,
+                "error": str(e)
+            }
+
+    def _create_folder(self, action):
+        path = action.get("path")
+        if not path: raise ValueError("Missing 'path'")
+        self.workspace.create_folder(path)
+        return f"Folder created: {path}"
+
+    def _create_file(self, action):
+        path = action.get("path")
+        content = action.get("content", "")
+        if not path: raise ValueError("Missing 'path'")
+        self.workspace.create_file(path, content)
+        return f"File created: {path}"
+
+    def _edit_file(self, action):
+        path = action.get("path")
+        content = action.get("content", "")
+        if not path: raise ValueError("Missing 'path'")
+        self.workspace.edit_file(path, content)
+        return f"File edited: {path}"
+
+    def _replace_text(self, action):
+        path = action.get("path")
+        search = action.get("search")
+        replace = action.get("replace")
+        if not path or search is None or replace is None:
+            raise ValueError("Missing 'path', 'search', or 'replace'")
+        self.workspace.replace_text(path, search, replace)
+        return f"Text replaced in {path}"
+
+    def _run_python(self, action):
+        path = action.get("path")
+        if not path: raise ValueError("Missing 'path'")
+        full_path = self.workspace.resolve_safe(path)
+        result = self.runner.run(full_path)
+        return {
+            "ok": result.get("returncode") == 0 if "returncode" in result else False,
+            "action": "run_python",
+            "data": result
+        }
+
+    def _run_tests(self, action):
+        result = self.tests.run_tests(self.workspace.root)
+        return {
+            "ok": result.get("returncode") == 0 if "returncode" in result else False,
+            "action": "run_tests",
+            "data": result
+        }
+
+    def _git_init(self, action):
+        result = self.git.init()
+        return {
+            "ok": result.returncode == 0,
+            "action": "git_init",
+            "message": result.stdout or "Git initialized"
+        }
+
+    def _git_commit(self, action):
+        message = action.get("message", "Commit by agent")
+        result = self.git.commit(message)
+        return {
+            "ok": result.returncode == 0,
+            "action": "git_commit",
+            "message": result.stdout or "Committed changes"
+        }
+
+    def _finish(self, action):
+        return {"ok": True, "action": "finish", "message": "Task completed"}
