@@ -21,37 +21,30 @@ def test_executor_create_file(tmp_path):
     result = executor.execute(
         {
             "action": "create_file",
-            "path": "hello.txt",
-            "content": "hello",
+            "path": "hello.py",
+            "content": "print('hello')\n",
         }
     )
 
-    assert result["status"] == "ok"
-    assert workspace.read_file("hello.txt") == "hello"
+    assert result["success"] is True
+    assert workspace.read_file("hello.py") == "print('hello')\n"
 
 
 def test_executor_replace_text(tmp_path):
     executor, workspace = make_executor(tmp_path)
-
-    executor.execute(
-        {
-            "action": "create_file",
-            "path": "hello.txt",
-            "content": "hello",
-        }
-    )
+    workspace.write_file("hello.txt", "hello world")
 
     result = executor.execute(
         {
             "action": "replace_text",
             "path": "hello.txt",
-            "search": "hello",
-            "replace": "world",
+            "search": "world",
+            "replace": "vibuilder",
         }
     )
 
-    assert result["status"] == "ok"
-    assert workspace.read_file("hello.txt") == "world"
+    assert result["success"] is True
+    assert workspace.read_file("hello.txt") == "hello vibuilder"
 
 
 def test_executor_run_python(tmp_path):
@@ -60,18 +53,17 @@ def test_executor_run_python(tmp_path):
     executor.execute(
         {
             "action": "create_file",
-            "path": "script.py",
-            "content": "print('hello from script')\n",
+            "path": "hello.py",
+            "content": "print('hello')\n",
         }
     )
 
     result = executor.execute(
         {
             "action": "run_python",
-            "path": "script.py",
+            "path": "hello.py",
         }
     )
 
-    assert result["status"] == "ok"
-    assert result["returncode"] == 0
-    assert "hello from script" in result["stdout"]
+    assert result["success"] is True
+    assert "hello" in result["stdout"]

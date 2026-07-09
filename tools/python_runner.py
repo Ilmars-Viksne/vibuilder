@@ -6,31 +6,22 @@ class PythonRunner:
     def run(self, script_path: str | Path) -> dict:
         script_path = Path(script_path)
 
-        try:
-            result = subprocess.run(
-                ["python", str(script_path)],
-                cwd=str(script_path.parent),
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
+        if not script_path.exists():
+            raise FileNotFoundError(f"Python script not found: {script_path}")
 
-            return {
-                "status": "ok" if result.returncode == 0 else "failed",
-                "returncode": result.returncode,
-                "stdout": result.stdout[-10000:],
-                "stderr": result.stderr[-10000:],
-            }
+        result = subprocess.run(
+            ["python", str(script_path)],
+            cwd=str(script_path.parent),
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
 
-        except subprocess.TimeoutExpired:
-            return {
-                "status": "error",
-                "error": "Timeout",
-                "stderr": "Execution exceeded 120 seconds",
-            }
-
-        except Exception as exc:
-            return {
-                "status": "error",
-                "error": str(exc),
-            }
+        return {
+            "command": f"python {script_path.name}",
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
+        }

@@ -43,3 +43,13 @@ def test_path_traversal_rejected():
                 "content": "",
             }
         )
+
+
+def test_unexpected_field_rejected():
+    with pytest.raises(ValueError):
+        validate_action(
+            {
+                "action": "finish",
+                "path": "unexpected.txt",
+            }
+        )

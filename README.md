@@ -47,12 +47,16 @@ provider: nim
 providers:
   nim:
     model: meta/llama-3.3-70b-instruct
+    api_key_env: NIM_API_KEY
   openrouter:
     model: anthropic/claude-3.5-sonnet
+    api_key_env: OPENROUTER_API_KEY
   ollama:
     model: qwen2.5-coder:32b
   lmstudio:
     model: local-model
+  mock:
+    model: mock-model
 ```
 
 ## Usage
@@ -67,6 +71,21 @@ python main.py --goal "Build a FastAPI ToDo API with SQLite" --provider openrout
 
 - `--goal`: The task for the agent to complete (required).
 - `--provider`: Override the default provider from `config.yaml`.
+- `--max-steps`: Maximum autonomous execution steps (default: 50).
+
+## Running Tests
+
+Run the full test suite with:
+
+```bash
+PYTHONPATH=. pytest -q
+```
+
+You can also run a syntax/import check with:
+
+```bash
+python -m compileall .
+```
 
 ## Architecture
 
@@ -77,10 +96,34 @@ python main.py --goal "Build a FastAPI ToDo API with SQLite" --provider openrout
 5.  **Tester:** Evaluates test results and suggests fixes.
 6.  **Reviewer:** Provides a final assessment of the completed work.
 
+### Agent Action Schema
+
+The coder must return one JSON object per step. Supported actions are:
+
+```json
+{"action": "create_folder", "path": "path/to/dir"}
+{"action": "create_file", "path": "path/to/file", "content": "file content"}
+{"action": "edit_file", "path": "path/to/file", "content": "new content"}
+{"action": "replace_text", "path": "path/to/file", "search": "old text", "replace": "new text"}
+{"action": "run_python", "path": "path/to/script.py"}
+{"action": "run_tests"}
+{"action": "git_init"}
+{"action": "git_commit", "message": "commit message"}
+{"action": "finish"}
+```
+
+All file paths must be relative to `agent_workspace/`. Absolute paths and path traversal are rejected.
+
+### Workspace Safety Model
+
+Vibuilder performs all filesystem operations inside `agent_workspace/`.
+
+The action validator rejects obvious unsafe paths such as absolute paths and `..` traversal. The workspace manager also resolves every path against the workspace root and rejects paths that escape the workspace.
+
 ## Testing with Mock Provider
 
 You can test the framework without an API key using the `mock` provider:
 
 ```bash
-python main.py --goal "Test task" --provider mock
+python main.py --goal "Create a hello script" --provider mock --max-steps 5
 ```

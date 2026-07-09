@@ -32,13 +32,17 @@ def test_settings_default_provider(tmp_path, monkeypatch):
 
     settings = Settings(write_config(tmp_path))
 
-    assert settings.resolve_provider() == "nim"
+    assert settings.get_provider_name() == "nim"
+    assert settings.get_provider_kwargs("nim") == {
+        "model": "meta/llama-3.3-70b-instruct",
+        "api_key": "nim-key",
+    }
 
 
 def test_settings_cli_override(tmp_path):
     settings = Settings(write_config(tmp_path))
 
-    assert settings.resolve_provider(cli_provider="mock") == "mock"
+    assert settings.get_provider_name("mock") == "mock"
 
 
 def test_settings_env_override(tmp_path, monkeypatch):
@@ -46,15 +50,15 @@ def test_settings_env_override(tmp_path, monkeypatch):
 
     settings = Settings(write_config(tmp_path))
 
-    assert settings.resolve_provider() == "openrouter"
+    assert settings.get_provider_name() == "openrouter"
 
 
 def test_get_provider_kwargs_mock(tmp_path):
     settings = Settings(write_config(tmp_path))
 
-    kwargs = settings.get_provider_kwargs("mock")
-
-    assert kwargs["model"] == "mock-model"
+    assert settings.get_provider_kwargs("mock") == {
+        "model": "mock-model",
+    }
 
 
 def test_get_provider_kwargs_requires_api_key(tmp_path, monkeypatch):

@@ -7,94 +7,52 @@ class WorkspaceManager:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def resolve(self, relative_path: str | Path) -> Path:
-        relative_path = Path(relative_path)
+    def resolve(self, path: str | Path) -> Path:
+        raw_path = Path(path)
 
-        if relative_path.is_absolute():
-            raise ValueError("Absolute paths are not allowed")
+        if raw_path.is_absolute():
+            raise ValueError(f"Absolute paths are not allowed: {path}")
 
-        candidate = (self.root / relative_path).resolve()
+        resolved = (self.root / raw_path).resolve()
 
-        try:
-            candidate.relative_to(self.root)
-        except ValueError as exc:
-            raise ValueError("Path escapes workspace") from exc
+        if resolved != self.root and self.root not in resolved.parents:
+            raise ValueError(f"Path escapes workspace: {path}")
 
-        return candidate
+        return resolved
 
-    def create_folder(self, path: str) -> dict:
-        target = self.resolve(path)
-        target.mkdir(parents=True, exist_ok=True)
-        return {
-            "status": "ok",
-            "operation": "create_folder",
-            "path": str(target.relative_to(self.root)),
-        }
+    def create_folder(self, path: str | Path) -> Path:
+        folder = self.resolve(path)
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
 
-    def create_file(self, path: str, content: str) -> dict:
-        target = self.resolve(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        return {
-            "status": "ok",
-            "operation": "create_file",
-            "path": str(target.relative_to(self.root)),
-            "bytes": len(content.encode("utf-8")),
-        }
+    def write_file(self, path: str | Path, content: str) -> Path:
+        file_path = self.resolve(path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(content, encoding="utf-8")
+        return file_path
 
-    def write_file(self, path: str, content: str) -> dict:
-        target = self.resolve(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        return {
-            "status": "ok",
-            "operation": "write_file",
-            "path": str(target.relative_to(self.root)),
-            "bytes": len(content.encode("utf-8")),
-        }
+    def read_file(self, path: str | Path) -> str:
+        file_path = self.resolve(path)
+        return file_path.read_text(encoding="utf-8")
 
-    def read_file(self, path: str) -> str:
-        target = self.resolve(path)
-        return target.read_text(encoding="utf-8")
-
-    def replace_text(self, path: str, search: str, replace: str) -> dict:
-        target = self.resolve(path)
-
-        if not target.exists():
-            raise FileNotFoundError(f"File not found: {path}")
-
-        content = target.read_text(encoding="utf-8")
+    def replace_text(self, path: str | Path, search: str, replace: str) -> Path:
+        file_path = self.resolve(path)
+        content = file_path.read_text(encoding="utf-8")
 
         if search not in content:
-            raise ValueError(f"Search text not found in {path}")
+            raise ValueError(f"Search text not found in file: {path}")
 
-        updated = content.replace(search, replace)
-        target.write_text(updated, encoding="utf-8")
+        content = content.replace(search, replace)
+        file_path.write_text(content, encoding="utf-8")
+        return file_path
 
-        return {
-            "status": "ok",
-            "operation": "replace_text",
-            "path": str(target.relative_to(self.root)),
-            "replacements": content.count(search),
-        }
-
-    def delete_path(self, path: str) -> dict:
+    def delete(self, path: str | Path) -> None:
         target = self.resolve(path)
 
         if target.is_dir():
             shutil.rmtree(target)
         elif target.exists():
             target.unlink()
-        else:
-            return {
-                "status": "noop",
-                "operation": "delete_path",
-                "path": path,
-                "message": "Path did not exist",
-            }
 
-        return {
-            "status": "ok",
-            "operation": "delete_path",
-            "path": path,
-        }
+    def exists(self, path: str | Path) -> bool:
+        return self.resolve(path).exists()

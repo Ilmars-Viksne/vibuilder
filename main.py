@@ -63,20 +63,21 @@ def main():
         default=50,
         help="Maximum autonomous execution steps",
     )
-
     args = parser.parse_args()
 
     settings = Settings()
-    provider_name = settings.resolve_provider(cli_provider=args.provider)
+    provider_name = settings.get_provider_name(args.provider)
     provider_kwargs = settings.get_provider_kwargs(provider_name)
     provider = ProviderRegistry.create(provider_name, **provider_kwargs)
 
     workspace = WorkspaceManager()
     memory = MemoryManager()
-    runner = PythonRunner()
-    tests = TestRunner()
-    git = GitTools(workspace.root)
-    executor = ToolExecutor(workspace, runner, tests, git)
+    executor = ToolExecutor(
+        workspace=workspace,
+        runner=PythonRunner(),
+        tests=TestRunner(),
+        git=GitTools(workspace.root),
+    )
 
     agent = AutonomousAgent(
         provider=provider,
@@ -91,7 +92,7 @@ def main():
     )
 
     result = agent.run(args.goal, max_steps=args.max_steps)
-    print(json.dumps(result, indent=2, default=str))
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

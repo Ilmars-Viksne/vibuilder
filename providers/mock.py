@@ -9,56 +9,45 @@ class MockProvider(BaseProvider):
         super().__init__(model=model)
         self.step = 0
 
-    def chat(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float = 0.2,
-    ) -> str:
-        content = messages[-1]["content"]
+    def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
+        prompt = messages[-1]["content"] if messages else ""
 
-        if "Create a step-by-step project plan" in content:
+        if "Create a step-by-step project plan" in prompt:
             return json.dumps(
                 [
-                    "Create a simple Python module",
-                    "Create tests for the module",
-                    "Run tests",
-                    "Finish",
+                    "Create a simple Python script",
+                    "Run the script",
+                    "Finish the task",
                 ]
             )
 
-        if "Design the system architecture" in content:
+        if "Design the system architecture" in prompt:
             return (
-                "Files:\n"
-                "- hello.py: contains greeting function\n"
-                "- test_hello.py: verifies greeting output\n"
-                "Data flow: tests import hello.greet and assert output."
+                "Create a single file named hello.py. "
+                "The script prints a greeting and can be executed with Python."
             )
 
-        if "Review the following agent action history" in content:
-            return "Mock review: task completed successfully."
+        if "Review the following agent action history" in prompt:
+            return "The mock run completed successfully."
 
-        if "Evaluate these test results" in content:
-            return "Mock tester: tests were evaluated."
+        if "Evaluate these test results" in prompt:
+            return "The mock test evaluation completed."
 
         actions = [
             {
                 "action": "create_file",
                 "path": "hello.py",
-                "content": "def greet(name: str) -> str:\n    return f'Hello, {name}!'\n",
+                "content": "print('hello from vibuilder')\n",
             },
             {
-                "action": "create_file",
-                "path": "test_hello.py",
-                "content": (
-                    "from hello import greet\n\n"
-                    "def test_greet():\n"
-                    "    assert greet('Vibuilder') == 'Hello, Vibuilder!'\n"
-                ),
+                "action": "run_python",
+                "path": "hello.py",
             },
-            {"action": "run_tests"},
-            {"action": "finish"},
+            {
+                "action": "finish",
+            },
         ]
 
-        action = actions[min(self.step, len(actions) - 1)]
+        index = min(self.step, len(actions) - 1)
         self.step += 1
-        return json.dumps(action)
+        return json.dumps(actions[index])

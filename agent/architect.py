@@ -12,4 +12,18 @@ class Architect:
             "Be specific about file names and their responsibilities."
         )
 
-        return provider.chat([{"role": "user", "content": prompt}])
+        response = provider.chat(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a senior software architect.",
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ]
+        )
+
+        logger.info("Architecture design produced")
+        return response.strip()

@@ -7,43 +7,38 @@ class GitTools:
         self.workspace_root = Path(workspace_root)
 
     def init(self) -> dict:
-        return self._run(["git", "init"])
+        init_result = self._run(["git", "init"])
+        if not init_result["success"]:
+            return init_result
+
+        # Configure local git user for the workspace
+        self._run(["git", "config", "user.name", "Vibuilder Agent"])
+        self._run(["git", "config", "user.email", "vibuilder@example.local"])
+
+        return init_result
 
     def commit(self, message: str) -> dict:
         add_result = self._run(["git", "add", "."])
-        if add_result["returncode"] != 0:
+        if not add_result["success"]:
             return add_result
 
-        return self._run(["git", "commit", "-m", message])
+        commit_result = self._run(["git", "commit", "-m", message])
+        return commit_result
 
     def _run(self, command: list[str]) -> dict:
-        try:
-            result = subprocess.run(
-                command,
-                cwd=str(self.workspace_root),
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+        result = subprocess.run(
+            command,
+            cwd=str(self.workspace_root),
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
 
-            return {
-                "status": "ok" if result.returncode == 0 else "failed",
-                "command": command,
-                "returncode": result.returncode,
-                "stdout": result.stdout[-10000:],
-                "stderr": result.stderr[-10000:],
-            }
-
-        except subprocess.TimeoutExpired:
-            return {
-                "status": "error",
-                "command": command,
-                "error": "Timeout",
-            }
-
-        except Exception as exc:
-            return {
-                "status": "error",
-                "command": command,
-                "error": str(exc),
-            }
+        return {
+            "command": " ".join(command),
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
+        }

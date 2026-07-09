@@ -12,11 +12,7 @@ class OpenRouterProvider(BaseProvider):
             base_url="https://openrouter.ai/api/v1",
         )
 
-    def chat(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float = 0.2,
-    ) -> str:
+    def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
