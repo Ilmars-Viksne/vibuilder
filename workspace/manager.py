@@ -1,60 +1,100 @@
-import os
 from pathlib import Path
 import shutil
 
-class WorkspaceManager:
-    def __init__(self, root="agent_workspace"):
-        self.root = Path(root).resolve()
-        self.root.mkdir(exist_ok=True)
 
-    def resolve_safe(self, relative_path: str) -> Path:
-        """
-        Resolves a relative path safely within the workspace root.
-        Prevents path traversal attacks.
-        """
-        # If relative_path is empty or just '.', resolve to root
-        if not relative_path or relative_path == ".":
-            return self.root
+class WorkspaceManager:
+    def __init__(self, root: str | Path = "agent_workspace"):
+        self.root = Path(root).resolve()
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def resolve(self, relative_path: str | Path) -> Path:
+        relative_path = Path(relative_path)
+
+        if relative_path.is_absolute():
+            raise ValueError("Absolute paths are not allowed")
 
         candidate = (self.root / relative_path).resolve()
 
-        # Check if candidate is inside root or is the root itself
-        if candidate != self.root and self.root not in candidate.parents:
-            raise ValueError(f"Path escapes workspace: {relative_path}")
+        try:
+            candidate.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("Path escapes workspace") from exc
 
         return candidate
 
-    def create_folder(self, path):
-        full_path = self.resolve_safe(path)
-        full_path.mkdir(parents=True, exist_ok=True)
+    def create_folder(self, path: str) -> dict:
+        target = self.resolve(path)
+        target.mkdir(parents=True, exist_ok=True)
+        return {
+            "status": "ok",
+            "operation": "create_folder",
+            "path": str(target.relative_to(self.root)),
+        }
 
-    def create_file(self, path, content=""):
-        full_path = self.resolve_safe(path)
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_text(content, encoding="utf-8")
+    def create_file(self, path: str, content: str) -> dict:
+        target = self.resolve(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return {
+            "status": "ok",
+            "operation": "create_file",
+            "path": str(target.relative_to(self.root)),
+            "bytes": len(content.encode("utf-8")),
+        }
 
-    def read_file(self, path):
-        full_path = self.resolve_safe(path)
-        return full_path.read_text(encoding="utf-8")
+    def write_file(self, path: str, content: str) -> dict:
+        target = self.resolve(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return {
+            "status": "ok",
+            "operation": "write_file",
+            "path": str(target.relative_to(self.root)),
+            "bytes": len(content.encode("utf-8")),
+        }
 
-    def edit_file(self, path, content):
-        # In this implementation, edit_file overwrites.
-        # Refinement might be needed if "edit" means something else.
-        full_path = self.resolve_safe(path)
-        full_path.write_text(content, encoding="utf-8")
+    def read_file(self, path: str) -> str:
+        target = self.resolve(path)
+        return target.read_text(encoding="utf-8")
 
-    def replace_text(self, path, search, replacement):
-        full_path = self.resolve_safe(path)
-        text = full_path.read_text(encoding="utf-8")
-        text = text.replace(search, replacement)
-        full_path.write_text(text, encoding="utf-8")
+    def replace_text(self, path: str, search: str, replace: str) -> dict:
+        target = self.resolve(path)
 
-    def delete_file(self, path):
-        full_path = self.resolve_safe(path)
-        if full_path.is_file():
-            full_path.unlink(missing_ok=True)
+        if not target.exists():
+            raise FileNotFoundError(f"File not found: {path}")
 
-    def delete_folder(self, path):
-        full_path = self.resolve_safe(path)
-        if full_path.is_dir() and full_path != self.root:
-            shutil.rmtree(full_path)
+        content = target.read_text(encoding="utf-8")
+
+        if search not in content:
+            raise ValueError(f"Search text not found in {path}")
+
+        updated = content.replace(search, replace)
+        target.write_text(updated, encoding="utf-8")
+
+        return {
+            "status": "ok",
+            "operation": "replace_text",
+            "path": str(target.relative_to(self.root)),
+            "replacements": content.count(search),
+        }
+
+    def delete_path(self, path: str) -> dict:
+        target = self.resolve(path)
+
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+        else:
+            return {
+                "status": "noop",
+                "operation": "delete_path",
+                "path": path,
+                "message": "Path did not exist",
+            }
+
+        return {
+            "status": "ok",
+            "operation": "delete_path",
+            "path": path,
+        }

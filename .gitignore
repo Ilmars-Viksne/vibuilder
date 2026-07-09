@@ -1,6 +1,28 @@
+# Runtime workspace
 agent_workspace/
+
+# Python
 __pycache__/
-*.pyc
-.env
-vibuilder.log
+*.py[cod]
+*.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment and secrets
+.env
+
+# Logs
+vibuilder.log
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

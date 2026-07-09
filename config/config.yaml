@@ -3,11 +3,20 @@ provider: nim
 providers:
   nim:
     model: meta/llama-3.3-70b-instruct
+    api_key_env: NIM_API_KEY
+
   openrouter:
     model: anthropic/claude-3.5-sonnet
+    api_key_env: OPENROUTER_API_KEY
+
   ollama:
     model: qwen2.5-coder:32b
+    base_url: http://localhost:11434
+
   lmstudio:
     model: local-model
+    base_url: http://localhost:1234/v1
+    api_key: lm-studio
+
   mock:
     model: mock-model
