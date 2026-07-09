@@ -27,28 +27,33 @@ Current Workspace Tree:
 {TreeBuilder.build(self.workspace)}
 
 Memory (Recent Actions):
-{self.memory.summary()}
+{self.memory.summary(limit=10)}
 
 Last Feedback:
 {feedback}
 
-Return ONLY valid JSON.
+Return ONLY valid JSON matching one allowed action schema.
+Do not include Markdown fences like ```json.
+Do not include prose, explanations, or comments.
+
 Allowed actions:
-- create_folder (path)
-- create_file (path, content)
-- edit_file (path, content)
-- replace_text (path, search, replace)
-- run_python (path)
-- run_tests (none)
-- git_init (none)
-- git_commit (message)
-- finish (none)
+- {{"action": "create_folder", "path": "path/to/dir"}}
+- {{"action": "create_file", "path": "path/to/file", "content": "file content"}}
+- {{"action": "edit_file", "path": "path/to/file", "content": "new content"}}
+- {{"action": "replace_text", "path": "path/to/file", "search": "old text", "replace": "new text"}}
+- {{"action": "run_python", "path": "path/to/script.py"}}
+- {{"action": "run_tests"}}
+- {{"action": "git_init"}}
+- {{"action": "git_commit", "message": "commit message"}}
+- {{"action": "finish"}}
 """
 
     def run(self, goal, max_steps=50):
+        logger.info(f"Starting task: {goal}")
+
         logger.info("-> Planning phase...")
         plan = self.planner.create_plan(self.provider, goal)
-        logger.debug(f"Plan: {plan}")
+        logger.info(f"Plan created: {plan}")
 
         logger.info("-> Architecture phase...")
         architecture = self.architect.design(self.provider, goal)
@@ -62,21 +67,43 @@ Allowed actions:
             action = self.coder.next_action(self.provider, context)
 
             if action.get("action") == "finish":
-                logger.info("-> Coding completed. Moving to verification...")
+                logger.info("-> Coder indicated completion.")
+                self.memory.add_event("execute", action, "Task finished by agent")
                 break
 
+            if action.get("action") == "error":
+                logger.warning(f"Coder error: {action.get('message')}")
+                feedback = f"Error: {action.get('message')}"
+                self.memory.add_event("error", action, feedback)
+                continue
+
+            logger.info(f"STEP {step + 1}/{max_steps} | Action: {action.get('action')} -> {action.get('path', '')}")
+
             result = self.executor.execute(action)
-            self.memory.add(action, result)
-            feedback = str(result)
+            self.memory.add_event("execute", action, result)
 
-            logger.info(f"STEP {step + 1} | Action: {action.get('action')} -> {action.get('path', '')}")
-            logger.debug(f"Result: {result}")
+            if result.get("ok"):
+                feedback = result.get("message", "Success")
+                logger.info(f"Result: SUCCESS - {feedback}")
+            else:
+                feedback = f"Failure: {result.get('error')}"
+                logger.warning(f"Result: FAILED - {feedback}")
 
-        logger.info("-> Testing phase...")
+        else:
+            logger.warning(f"Reached maximum steps ({max_steps}) without finishing.")
+
+        logger.info("-> Verification phase...")
         test_results = self.executor.execute({"action": "run_tests"})
         test_evaluation = self.tester.evaluate(self.provider, test_results)
         logger.info(f"Test Evaluation:\n{test_evaluation}")
 
         logger.info("-> Review phase...")
-        final_review = self.reviewer.review(self.provider, self.memory.summary())
+        final_review = self.reviewer.review(self.provider, self.memory.summary(limit=50))
         logger.info(f"Final Review:\n{final_review}")
+
+        return {
+            "goal": goal,
+            "steps_taken": step + 1 if 'step' in locals() else 0,
+            "test_evaluation": test_evaluation,
+            "final_review": final_review
+        }

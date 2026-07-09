@@ -1,21 +1,20 @@
-import json
-import re
 import logging
+from agent.parsing import extract_json_array
 
 logger = logging.getLogger(__name__)
 
 class Planner:
     def create_plan(self, provider, goal):
-        prompt = f"Create a step-by-step project plan to achieve the following goal:\n\n{goal}\n\nReturn the plan as a JSON list of strings."
+        prompt = (
+            "Create a step-by-step project plan to achieve the following goal:\n\n"
+            f"{goal}\n\n"
+            "Return ONLY a valid JSON list of strings representing the steps. "
+            "Do not include any prose or markdown formatting."
+        )
         response = provider.chat([{"role": "user", "content": prompt}])
 
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r'^```(?:json)?\n', '', cleaned)
-            cleaned = re.sub(r'\n```$', '', cleaned)
-
         try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError as e:
+            return extract_json_array(response)
+        except Exception as e:
             logger.error(f"Planner JSON Parsing Error: {e}\nRaw Response: {response}")
             return [f"Execute task: {goal}"]

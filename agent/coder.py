@@ -1,6 +1,5 @@
-import json
-import re
 import logging
+from agent.parsing import extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -8,14 +7,9 @@ class Coder:
     def next_action(self, provider, context):
         response = provider.chat([{"role": "system", "content": context}])
 
-        # Robust JSON parsing to handle LLMs that wrap output in markdown
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r'^```(?:json)?\n', '', cleaned)
-            cleaned = re.sub(r'\n```$', '', cleaned)
-
         try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError as e:
+            return extract_json_object(response)
+        except Exception as e:
             logger.error(f"Coder JSON Parsing Error: {e}\nRaw Response: {response}")
-            return {"action": "finish"}
+            # If parsing fails, try to return an error that might be fed back
+            return {"action": "error", "message": f"Failed to parse your response as JSON: {e}"}
