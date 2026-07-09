@@ -1,10 +1,24 @@
 import logging
+from typing import Any
+
 from workspace.tree import TreeBuilder
 
 logger = logging.getLogger(__name__)
 
+
 class AutonomousAgent:
-    def __init__(self, provider, workspace, executor, memory, planner, architect, coder, reviewer, tester):
+    def __init__(
+        self,
+        provider,
+        workspace,
+        executor,
+        memory,
+        planner,
+        architect,
+        coder,
+        reviewer,
+        tester,
+    ):
         self.provider = provider
         self.workspace = workspace
         self.executor = executor
@@ -15,18 +29,90 @@ class AutonomousAgent:
         self.reviewer = reviewer
         self.tester = tester
 
-    def build_context(self, goal, plan, architecture, feedback):
+    def run(self, goal: str, max_steps: int = 50) -> dict[str, Any]:
+        logger.info("Starting task: %s", goal)
+
+        plan = self.planner.create_plan(self.provider, goal)
+        architecture = self.architect.design(self.provider, goal)
+
+        feedback = "No feedback yet."
+        final_action = None
+
+        for step in range(1, max_steps + 1):
+            context = self._build_context(
+                goal=goal,
+                plan=plan,
+                architecture=architecture,
+                feedback=feedback,
+            )
+
+            try:
+                action = self.coder.next_action(self.provider, context)
+            except Exception as exc:
+                feedback = f"Failed to parse or validate action: {exc}"
+                self.memory.record(
+                    action={"action": "invalid"},
+                    result={"error": feedback},
+                )
+                continue
+
+            final_action = action
+
+            if action["action"] == "finish":
+                self.memory.record(
+                    action=action,
+                    result={"status": "finished"},
+                )
+                break
+
+            result = self.executor.execute(action)
+            self.memory.record(action=action, result=result)
+
+            feedback = self._format_feedback(result)
+
+            if action["action"] == "run_tests":
+                test_review = self.tester.evaluate(self.provider, result)
+                feedback = f"{feedback}\n\nTester feedback:\n{test_review}"
+
+        review = self.reviewer.review(
+            self.provider,
+            list(self.memory.history),
+        )
+
+        return {
+            "goal": goal,
+            "plan": plan,
+            "architecture": architecture,
+            "last_action": final_action,
+            "review": review,
+            "history": list(self.memory.history),
+        }
+
+    def _build_context(
+        self,
+        goal: str,
+        plan: list[str],
+        architecture: str,
+        feedback: str,
+    ) -> str:
+        plan_text = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(plan))
+
         return f"""
 You are an autonomous coding agent.
 
-Goal: {goal}
-Plan: {plan}
-Architecture: {architecture}
+Goal:
+{goal}
+
+Plan:
+{plan_text}
+
+Architecture:
+{architecture}
 
 Current Workspace Tree:
 {TreeBuilder.build(self.workspace)}
 
-Memory (Recent Actions):
+Memory Recent Actions:
 {self.memory.summary(limit=10)}
 
 Last Feedback:
@@ -46,64 +132,9 @@ Allowed actions:
 - {{"action": "git_init"}}
 - {{"action": "git_commit", "message": "commit message"}}
 - {{"action": "finish"}}
-"""
+""".strip()
 
-    def run(self, goal, max_steps=50):
-        logger.info(f"Starting task: {goal}")
-
-        logger.info("-> Planning phase...")
-        plan = self.planner.create_plan(self.provider, goal)
-        logger.info(f"Plan created: {plan}")
-
-        logger.info("-> Architecture phase...")
-        architecture = self.architect.design(self.provider, goal)
-        logger.debug(f"Architecture: {architecture}")
-
-        feedback = "Initial step."
-
-        logger.info("-> Entering Coding Loop...")
-        for step in range(max_steps):
-            context = self.build_context(goal, plan, architecture, feedback)
-            action = self.coder.next_action(self.provider, context)
-
-            if action.get("action") == "finish":
-                logger.info("-> Coder indicated completion.")
-                self.memory.add_event("execute", action, "Task finished by agent")
-                break
-
-            if action.get("action") == "error":
-                logger.warning(f"Coder error: {action.get('message')}")
-                feedback = f"Error: {action.get('message')}"
-                self.memory.add_event("error", action, feedback)
-                continue
-
-            logger.info(f"STEP {step + 1}/{max_steps} | Action: {action.get('action')} -> {action.get('path', '')}")
-
-            result = self.executor.execute(action)
-            self.memory.add_event("execute", action, result)
-
-            if result.get("ok"):
-                feedback = result.get("message", "Success")
-                logger.info(f"Result: SUCCESS - {feedback}")
-            else:
-                feedback = f"Failure: {result.get('error')}"
-                logger.warning(f"Result: FAILED - {feedback}")
-
-        else:
-            logger.warning(f"Reached maximum steps ({max_steps}) without finishing.")
-
-        logger.info("-> Verification phase...")
-        test_results = self.executor.execute({"action": "run_tests"})
-        test_evaluation = self.tester.evaluate(self.provider, test_results)
-        logger.info(f"Test Evaluation:\n{test_evaluation}")
-
-        logger.info("-> Review phase...")
-        final_review = self.reviewer.review(self.provider, self.memory.summary(limit=50))
-        logger.info(f"Final Review:\n{final_review}")
-
-        return {
-            "goal": goal,
-            "steps_taken": step + 1 if 'step' in locals() else 0,
-            "test_evaluation": test_evaluation,
-            "final_review": final_review
-        }
+    def _format_feedback(self, result: Any) -> str:
+        if isinstance(result, dict):
+            return "\n".join(f"{k}: {v}" for k, v in result.items())
+        return str(result)

@@ -1,17 +1,17 @@
-import pytest
-from agent.autonomous import AutonomousAgent
-from providers.mock import MockProvider
-from workspace.manager import WorkspaceManager
-from memory.manager import MemoryManager
-from tools.executor import ToolExecutor
-from tools.python_runner import PythonRunner
-from tools.test_runner import TestRunner
-from tools.git_tools import GitTools
-from agent.planner import Planner
 from agent.architect import Architect
+from agent.autonomous import AutonomousAgent
 from agent.coder import Coder
+from agent.planner import Planner
 from agent.reviewer import Reviewer
 from agent.tester import Tester
+from memory.manager import MemoryManager
+from providers.mock import MockProvider
+from tools.executor import ToolExecutor
+from tools.git_tools import GitTools
+from tools.python_runner import PythonRunner
+from tools.test_runner import TestRunner
+from workspace.manager import WorkspaceManager
+
 
 def test_autonomous_mock_run(tmp_path):
     workspace = WorkspaceManager(root=tmp_path)
@@ -19,10 +19,10 @@ def test_autonomous_mock_run(tmp_path):
     provider = MockProvider()
 
     executor = ToolExecutor(
-        workspace,
-        PythonRunner(),
-        TestRunner(),
-        GitTools(workspace.root)
+        workspace=workspace,
+        runner=PythonRunner(),
+        tests=TestRunner(),
+        git=GitTools(workspace.root),
     )
 
     agent = AutonomousAgent(
@@ -34,15 +34,25 @@ def test_autonomous_mock_run(tmp_path):
         architect=Architect(),
         coder=Coder(),
         reviewer=Reviewer(),
-        tester=Tester()
+        tester=Tester(),
     )
 
-    result = agent.run("Test goal", max_steps=5)
+    result = agent.run(
+        "Create a hello module and tests",
+        max_steps=10,
+    )
 
-    assert result["steps_taken"] > 0
-    assert (tmp_path / "test.py").exists()
-    assert "Mock working" in (tmp_path / "test.py").read_text()
+    assert (tmp_path / "hello.py").exists()
+    assert (tmp_path / "test_hello.py").exists()
+    assert result["last_action"]["action"] == "finish"
+    assert "Mock review" in result["review"]
 
-    # Check memory
-    assert len(memory.history) > 0
-    assert memory.history[0]["phase"] == "execute"
+    test_events = [
+        event
+        for event in result["history"]
+        if event["action"].get("action") == "run_tests"
+    ]
+
+    assert test_events
+    assert test_events[-1]["result"]["status"] == "ok"
+    assert test_events[-1]["result"]["returncode"] == 0
