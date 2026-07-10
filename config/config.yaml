@@ -6,7 +6,7 @@ providers:
     api_key_env: NIM_API_KEY
 
   openrouter:
-    model: anthropic/claude-3.5-sonnet
+    model: openai/gpt-oss-120b:free
     api_key_env: OPENROUTER_API_KEY
 
   ollama:

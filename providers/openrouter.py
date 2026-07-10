@@ -10,6 +10,8 @@ class OpenRouterProvider(BaseProvider):
         self.client = OpenAI(
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
+            timeout=120.0,
+            max_retries=1,
         )
 
     def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:

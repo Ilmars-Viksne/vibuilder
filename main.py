@@ -1,11 +1,13 @@
 import argparse
 import json
 import logging
+import sys
 
 from dotenv import load_dotenv
 
 from config.settings import Settings
 from providers.base import ProviderRegistry
+import openai
 
 # Import providers to trigger registry decorators.
 import providers.nim  # noqa: F401
@@ -91,8 +93,34 @@ def main():
         tester=Tester(),
     )
 
-    result = agent.run(args.goal, max_steps=args.max_steps)
-    print(json.dumps(result, indent=2))
+    try:
+        result = agent.run(args.goal, max_steps=args.max_steps)
+        print(json.dumps(result, indent=2))
+    except openai.RateLimitError as exc:
+        logger.error("Vibuilder run failed due to provider rate limit: %s", exc)
+        print()
+        print("Vibuilder failed before completing the task.")
+        print("Error: Provider rate-limited (HTTP 429).")
+        print()
+        print("If you are using OpenRouter, try one of these fixes:")
+        print("1. Wait and retry later.")
+        print("2. Use a non-free OpenRouter model.")
+        print("3. Add OpenRouter credits or your own key.")
+        print("4. Use another provider, for example: --provider nim")
+        raise SystemExit(2)
+    except Exception as exc:
+        logger.exception("Vibuilder run failed")
+        print()
+        print("Vibuilder failed before completing the task.")
+        print(f"Error: {exc}")
+        print()
+        print("If you are using OpenRouter and see HTTP 429, you are rate-limited.")
+        print("Try one of these fixes:")
+        print("1. Wait and retry later.")
+        print("2. Use a non-free OpenRouter model.")
+        print("3. Add OpenRouter credits.")
+        print("4. Use another provider, for example: --provider nim")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
