@@ -40,6 +40,9 @@ class AutonomousAgent:
         last_feedback: Any = "<no feedback yet>"
         finished = False
 
+        invalid_action_failures = 0
+        max_invalid_action_failures = 3
+
         for step_index in range(1, max_steps + 1):
             context = self._build_context(
                 goal=goal,
@@ -50,12 +53,21 @@ class AutonomousAgent:
 
             try:
                 action = self.coder.next_action(self.provider, context)
+                invalid_action_failures = 0
             except Exception as exc:
+                invalid_action_failures += 1
                 logger.exception("Failed to produce valid next action")
+
                 last_feedback = {
                     "success": False,
                     "error": f"Failed to produce valid next action: {exc}",
+                    "invalid_action_failures": invalid_action_failures,
                 }
+
+                if invalid_action_failures >= max_invalid_action_failures:
+                    logger.error("Stopping after too many invalid action failures")
+                    break
+
                 continue
 
             result = self.executor.execute(action)
@@ -112,6 +124,15 @@ Last Feedback:
 Return ONLY valid JSON matching one allowed action schema.
 Do not include Markdown fences like ```json.
 Do not include prose, explanations, or comments.
+
+Critical JSON formatting rules:
+- The full response must be exactly one JSON object.
+- All string values must use valid JSON escaping.
+- Newlines inside file content must be escaped as \\n.
+- Double quotes inside file content must be escaped as \\".
+- Do not use Python triple-quoted strings.
+- Do not use trailing commas.
+- If creating a file, put the entire file content in the JSON "content" string.
 
 Allowed actions:
 - {{"action": "create_folder", "path": "path/to/dir"}}

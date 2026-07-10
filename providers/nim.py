@@ -10,6 +10,8 @@ class NIMProvider(BaseProvider):
         self.client = OpenAI(
             base_url="https://integrate.api.nvidia.com/v1",
             api_key=api_key,
+            timeout=120.0,
+            max_retries=3,
         )
 
     def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
