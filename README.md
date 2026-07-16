@@ -6,7 +6,7 @@ Vibuilder is a lightweight, provider-agnostic autonomous coding agent that works
 
 - **Provider Agnostic:** Easily switch between different LLM providers using a Registry pattern.
 - **Autonomous Workflow:** Follows a structured Plan -> Design -> Execute -> Verify loop.
-- **Isolated Workspace:** All agent operations are confined to an `agent_workspace/` directory.
+- **Isolated Workspace:** All agent operations are confined to the user-selected workspace directory, which defaults to `agent_workspace/`.
 - **Persistent Memory:** Action history is saved to JSON for auditing and resumption.
 - **Integrated Tools:** Built-in support for Python execution, Pytest, and Git.
 
@@ -93,6 +93,40 @@ python main.py --goal "Build a FastAPI ToDo API with SQLite" --provider openrout
 - `--provider`: Override the default provider from `config/config.yaml`.
 - `--fallback-provider`: Optional provider to use when the primary provider is rate-limited or temporarily unavailable. Fallback is attempted only if the current run has not executed workspace actions.
 - `--max-steps`: Maximum autonomous execution steps. Default: `50`.
+- `--workspace`: Name and location of the agent workspace directory. Defaults to `agent_workspace`.
+
+### Selecting the Workspace
+
+By default, Vibuilder creates and uses `agent_workspace` in the current directory.
+
+Use `--workspace` to select a different folder name or location:
+
+```bash
+python main.py \
+  --goal "Create a Python CLI calculator" \
+  --workspace projects/calculator \
+  --provider nim
+```
+
+An absolute path can also be used:
+
+```bash
+python main.py \
+  --goal "Create a Python CLI calculator" \
+  --workspace "/home/user/vibuilder-projects/calculator" \
+  --provider nim
+```
+
+Windows PowerShell example:
+
+```powershell
+python main.py `
+  --goal "Create a Python CLI calculator" `
+  --workspace "D:\Vibuilder Projects\calculator" `
+  --provider nim
+```
+
+All agent filesystem operations remain confined to the selected workspace.
 
 ### Automatic Provider Fallback
 
@@ -148,12 +182,12 @@ Vibuilder uses the following process exit codes:
 
 This example shows how an end user can use Vibuilder to first create a working Python CLI arithmetic calculator and then upgrade the existing calculator by adding percentage calculations.
 
-Vibuilder writes and edits project files inside the isolated `agent_workspace/` directory.
+Vibuilder writes and edits project files inside the isolated user-selected workspace directory (e.g. `agent_workspace/`).
 
 Use this rule:
 
-- For a **new project**, start with a clean `agent_workspace/`.
-- For an **upgrade**, keep the existing `agent_workspace/` so Vibuilder can inspect and modify the current files.
+- For a **new project**, start with a clean workspace folder.
+- For an **upgrade**, keep the existing workspace folder so Vibuilder can inspect and modify the current files.
 
 ### 1. Create a New CLI Arithmetic Calculator
 
@@ -241,7 +275,7 @@ pytest -q
 
 ### 2. Upgrade the Existing Calculator with Percentage Operations
 
-To edit or upgrade an existing generated project, do **not** delete `agent_workspace/`.
+To edit or upgrade an existing generated project, do **not** delete the workspace folder.
 
 Use a goal that clearly tells Vibuilder to inspect and modify the current calculator instead of creating a brand-new one.
 
@@ -397,13 +431,13 @@ Supported actions are:
 {"action": "finish"}
 ```
 
-All file paths must be relative to `agent_workspace/`.
+All file paths must be relative to the user-selected workspace directory (which defaults to `agent_workspace/`).
 
 Absolute paths and path traversal are rejected.
 
 ### Workspace Safety Model
 
-Vibuilder performs all filesystem operations inside `agent_workspace/`.
+All agent operations are confined to the user-selected workspace directory, which defaults to `agent_workspace/`.
 
 The action validator rejects obvious unsafe paths such as absolute paths and `..` traversal. The workspace manager also resolves every path against the workspace root and rejects paths that escape the workspace.
 

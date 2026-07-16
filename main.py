@@ -142,7 +142,7 @@ def validate_provider_selection(
         )
 
 
-def main() -> int:
+def create_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Vibuilder: Autonomous Coding Agent"
     )
@@ -172,7 +172,21 @@ def main() -> int:
             "rate-limited or temporarily unavailable"
         ),
     )
+    parser.add_argument(
+        "--workspace",
+        type=str,
+        default="agent_workspace",
+        metavar="PATH",
+        help=(
+            "Name and location of the agent workspace directory. "
+            "Defaults to ./agent_workspace."
+        ),
+    )
+    return parser
 
+
+def main() -> int:
+    parser = create_argument_parser()
     args = parser.parse_args()
 
     if args.max_steps < 1:
@@ -187,8 +201,10 @@ def main() -> int:
         fallback_provider=args.fallback_provider,
     )
 
-    workspace = WorkspaceManager()
-    memory = MemoryManager()
+    workspace = WorkspaceManager(root=args.workspace)
+    memory = MemoryManager(
+        persist_path=workspace.root / ".vibuilder_memory.json"
+    )
     starting_memory_step = memory.current_step
 
     executor = ToolExecutor(
@@ -197,6 +213,8 @@ def main() -> int:
         tests=TestRunner(),
         git=GitTools(workspace.root),
     )
+
+    print(f"Workspace: {workspace.root}")
 
     try:
         primary_provider = create_provider(

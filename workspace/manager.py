@@ -3,9 +3,22 @@ import shutil
 
 
 class WorkspaceManager:
-    def __init__(self, root: str | Path = "agent_workspace"):
-        self.root = Path(root).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: str | Path = "agent_workspace") -> None:
+        root_path = Path(root).expanduser()
+
+        try:
+            self.root = root_path.resolve()
+            self.root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ValueError(
+                f"Unable to create or access workspace "
+                f"{root_path!s}: {exc}"
+            ) from exc
+
+        if not self.root.is_dir():
+            raise ValueError(
+                f"Workspace path is not a directory: {self.root}"
+            )
 
     def resolve(self, path: str | Path) -> Path:
         raw_path = Path(path)
@@ -15,8 +28,12 @@ class WorkspaceManager:
 
         resolved = (self.root / raw_path).resolve()
 
-        if resolved != self.root and self.root not in resolved.parents:
-            raise ValueError(f"Path escapes workspace: {path}")
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError(
+                f"Path escapes workspace: {path}"
+            ) from exc
 
         return resolved
 
