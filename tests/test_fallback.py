@@ -4,7 +4,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from providers.base import ProviderRegistry
-from providers.errors import ProviderRateLimitError, ProviderUnavailableError
+from providers.errors import (
+    ProviderAuthenticationError,
+    ProviderRateLimitError,
+    ProviderUnavailableError,
+)
 from main import main, create_provider
 
 
@@ -95,10 +99,7 @@ def test_fallback_triggered_when_step_is_0(
     ]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
-    assert exc_info.value.code == 0
+    assert main() == 0
     # Check that fallback agent was run
     fallback_agent.run.assert_called_once_with("test goal", max_steps=50)
 
@@ -145,11 +146,8 @@ def test_no_fallback_when_step_greater_than_0(
     ]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
     # Should exit with the exit code of ProviderRateLimitError (11)
-    assert exc_info.value.code == 11
+    assert main() == 11
 
 
 @patch("main.AutonomousAgent")
@@ -196,10 +194,7 @@ def test_fallback_provider_creation_fails(
     ]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
-    assert exc_info.value.code == 3
+    assert main() == 3
 
 
 @patch("main.AutonomousAgent")
@@ -246,7 +241,89 @@ def test_fallback_provider_run_fails(
     ]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    with pytest.raises(SystemExit) as exc_info:
-        main()
+    assert main() == 3
 
-    assert exc_info.value.code == 3
+
+@patch("main.AutonomousAgent")
+@patch("main.create_provider")
+def test_no_fallback_on_authentication_failure(
+    mock_create_provider,
+    mock_autonomous_agent,
+    monkeypatch,
+    tmp_path
+):
+    primary_provider = MagicMock()
+    mock_create_provider.return_value = primary_provider
+
+    primary_agent = MagicMock()
+    primary_agent.run.side_effect = ProviderAuthenticationError(
+        provider="MockPrimary",
+        message="Invalid credentials"
+    )
+
+    mock_autonomous_agent.return_value = primary_agent
+
+    mock_memory = MagicMock()
+    mock_memory.current_step = 0
+    monkeypatch.setattr("main.MemoryManager", lambda *args, **kwargs: mock_memory)
+
+    mock_settings = MagicMock()
+    mock_settings.get_provider_name.return_value = "mock"
+    monkeypatch.setattr("main.Settings", lambda *args, **kwargs: mock_settings)
+
+    test_args = [
+        "main.py",
+        "--goal", "test goal",
+        "--provider", "mock",
+        "--fallback-provider", "nim"
+    ]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    # Should exit with the exit code of ProviderAuthenticationError (12) and not attempt fallback
+    assert main() == 12
+
+
+@patch("main.AutonomousAgent")
+@patch("main.create_provider")
+def test_fallback_triggered_when_resumed_run_has_no_actions(
+    mock_create_provider,
+    mock_autonomous_agent,
+    monkeypatch,
+    tmp_path
+):
+    primary_provider = MagicMock()
+    mock_create_provider.return_value = primary_provider
+
+    primary_agent = MagicMock()
+    primary_agent.run.side_effect = ProviderRateLimitError(
+        provider="MockPrimary",
+        model="primary-model",
+        message="Rate limited",
+        retry_after_seconds=5
+    )
+
+    fallback_agent = MagicMock()
+    fallback_agent.run.return_value = {"finished": True, "result": "success"}
+
+    mock_autonomous_agent.side_effect = [primary_agent, fallback_agent]
+
+    # Mock MemoryManager current_step to be 5, simulating 5 steps from a previous run
+    mock_memory = MagicMock()
+    mock_memory.current_step = 5
+    monkeypatch.setattr("main.MemoryManager", lambda *args, **kwargs: mock_memory)
+
+    mock_settings = MagicMock()
+    mock_settings.get_provider_name.return_value = "mock"
+    monkeypatch.setattr("main.Settings", lambda *args, **kwargs: mock_settings)
+
+    test_args = [
+        "main.py",
+        "--goal", "test goal",
+        "--provider", "mock",
+        "--fallback-provider", "nim"
+    ]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    # Fallback should run and return 0 because no actions were performed in the current run (current_step remains 5)
+    assert main() == 0
+    fallback_agent.run.assert_called_once_with("test goal", max_steps=50)
