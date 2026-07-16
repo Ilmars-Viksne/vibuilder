@@ -91,7 +91,58 @@ python main.py --goal "Build a FastAPI ToDo API with SQLite" --provider openrout
 
 - `--goal`: The task for the agent to complete. This option is required.
 - `--provider`: Override the default provider from `config/config.yaml`.
+- `--fallback-provider`: Optional provider to use when the primary provider is rate-limited or temporarily unavailable. Fallback is attempted only if the current run has not executed workspace actions.
 - `--max-steps`: Maximum autonomous execution steps. Default: `50`.
+
+### Automatic Provider Fallback
+
+Vibuilder can optionally switch to another configured provider when the primary provider is rate-limited or temporarily unavailable.
+
+Fallback is opt-in. Specify it with `--fallback-provider`:
+
+#### Linux/macOS/Git Bash
+
+```bash
+python main.py \
+  --goal "Create a Python CLI calculator and run its tests." \
+  --provider openrouter \
+  --fallback-provider nim \
+  --max-steps 30
+```
+
+#### Windows PowerShell
+
+```powershell
+$goal = "Create a Python CLI calculator and run its tests."
+
+python main.py `
+  --goal $goal `
+  --provider openrouter `
+  --fallback-provider nim `
+  --max-steps 30
+```
+
+Automatic fallback is attempted only when no new workspace actions have been executed during the current run. If the primary provider fails after creating or editing files, Vibuilder stops and preserves the current workspace instead of restarting the task with another provider.
+
+The fallback provider must:
+- be configured in `config/config.yaml`
+- differ from the primary provider
+- have any required API key available in `.env`
+- be imported and registered with `ProviderRegistry`
+
+Authentication failures do not trigger automatic fallback. Correct the provider credentials and rerun the command.
+
+### Exit Codes
+
+Vibuilder uses the following process exit codes:
+
+- `0`: Task completed successfully.
+- `1`: Unexpected application failure.
+- `2`: Invalid command-line arguments.
+- `3`: Unexpected fallback-provider creation or execution failure.
+- `11`: Provider rate limit reached.
+- `12`: Provider authentication failed.
+- `13`: Provider temporarily unavailable.
 
 ## Example: Create and Upgrade a Python CLI Arithmetic Calculator
 

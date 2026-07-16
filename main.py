@@ -48,6 +48,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Module-level exit code constants
+EXIT_SUCCESS = 0
+EXIT_UNEXPECTED_ERROR = 1
+EXIT_FALLBACK_FAILED = 3
+
 
 def create_provider(
     settings: Settings,
@@ -137,7 +142,7 @@ def validate_provider_selection(
         )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Vibuilder: Autonomous Coding Agent"
     )
@@ -184,6 +189,7 @@ def main() -> None:
 
     workspace = WorkspaceManager()
     memory = MemoryManager()
+    starting_memory_step = memory.current_step
 
     executor = ToolExecutor(
         workspace=workspace,
@@ -215,9 +221,13 @@ def main() -> None:
     ) as exc:
         logger.warning("%s", exc)
 
+        current_run_has_no_actions = (
+            memory.current_step == starting_memory_step
+        )
+
         can_fallback = (
             args.fallback_provider is not None
-            and memory.current_step == 0
+            and current_run_has_no_actions
         )
 
         if not can_fallback:
@@ -230,7 +240,7 @@ def main() -> None:
 
             if (
                 args.fallback_provider is not None
-                and memory.current_step > 0
+                and memory.current_step > starting_memory_step
             ):
                 print()
                 print(
@@ -239,7 +249,7 @@ def main() -> None:
                     "been executed."
                 )
 
-            raise SystemExit(exc.exit_code)
+            return exc.exit_code
 
         logger.info(
             "Primary provider %s failed before any actions; "
@@ -277,14 +287,17 @@ def main() -> None:
                 fallback_exc,
             )
             print_rate_limit_error(fallback_exc)
-            raise SystemExit(fallback_exc.exit_code)
+            return fallback_exc.exit_code
 
         except ProviderAuthenticationError as fallback_exc:
-            logger.error("%s", fallback_exc)
+            logger.error(
+                "Fallback provider authentication failed: %s",
+                fallback_exc,
+            )
             print()
             print("Fallback provider authentication failed.")
             print(str(fallback_exc))
-            raise SystemExit(fallback_exc.exit_code)
+            return fallback_exc.exit_code
 
         except ProviderUnavailableError as fallback_exc:
             logger.warning(
@@ -294,7 +307,28 @@ def main() -> None:
             print()
             print("The fallback provider is unavailable.")
             print(str(fallback_exc))
-            raise SystemExit(fallback_exc.exit_code)
+            return fallback_exc.exit_code
+
+        except (ValueError, RuntimeError) as fallback_exc:
+            logger.exception(
+                "Fallback provider creation or execution failed"
+            )
+            print()
+            print("The fallback provider could not complete the task.")
+            print(f"Error: {fallback_exc}")
+            return EXIT_FALLBACK_FAILED
+
+        except Exception as fallback_exc:
+            logger.exception(
+                "Unexpected fallback provider failure"
+            )
+            print()
+            print(
+                "An unexpected error occurred while using "
+                "the fallback provider."
+            )
+            print(f"Error: {fallback_exc}")
+            return EXIT_FALLBACK_FAILED
 
     except ProviderAuthenticationError as exc:
         logger.error("%s", exc)
@@ -311,7 +345,7 @@ def main() -> None:
             "your local .env file."
         )
 
-        raise SystemExit(exc.exit_code)
+        return exc.exit_code
 
     except Exception as exc:
         logger.exception("Vibuilder run failed")
@@ -322,10 +356,11 @@ def main() -> None:
         print()
         print("See vibuilder.log for the full traceback.")
 
-        raise SystemExit(1)
+        return EXIT_UNEXPECTED_ERROR
 
     print(json.dumps(result, indent=2))
+    return EXIT_SUCCESS
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
