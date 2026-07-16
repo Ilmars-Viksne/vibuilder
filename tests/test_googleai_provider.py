@@ -265,6 +265,140 @@ def test_googleai_smoke_test(mock_client_class):
     mock_client.models.generate_content.assert_called_once()
 
 
+@patch("providers.googleai.genai.Client")
+def test_googleai_supports_system_only_request(
+    mock_client_class,
+):
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = (
+        SimpleNamespace(
+            text='{"action": "finish"}'
+        )
+    )
+    mock_client_class.return_value = mock_client
+
+    provider = GoogleAIProvider(
+        api_key="test-key",
+        model="gemma-4-31b-it",
+    )
+
+    result = provider.chat(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "Return only one valid JSON action."
+                ),
+            }
+        ],
+        temperature=0.0,
+    )
+
+    assert result == '{"action": "finish"}'
+
+    call = (
+        mock_client.models.generate_content
+        .call_args
+    )
+
+    contents = call.kwargs["contents"]
+    config = call.kwargs["config"]
+
+    assert len(contents) == 1
+    assert contents[0].role == "user"
+    assert (
+        contents[0].parts[0].text
+        == "Return only one valid JSON action."
+    )
+    assert getattr(config, "system_instruction", None) is None
+
+
+@patch("providers.googleai.genai.Client")
+def test_googleai_preserves_mixed_message_roles(
+    mock_client_class,
+):
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = (
+        SimpleNamespace(text="Result")
+    )
+    mock_client_class.return_value = mock_client
+
+    provider = GoogleAIProvider(
+        api_key="test-key",
+        model="gemma-4-31b-it",
+    )
+
+    provider.chat(
+        [
+            {
+                "role": "system",
+                "content": "You are a coding agent.",
+            },
+            {
+                "role": "user",
+                "content": "Create the next action.",
+            },
+            {
+                "role": "assistant",
+                "content": "Previous response.",
+            },
+        ]
+    )
+
+    call = (
+        mock_client.models.generate_content
+        .call_args
+    )
+
+    contents = call.kwargs["contents"]
+    config = call.kwargs["config"]
+
+    assert config.system_instruction == (
+        "You are a coding agent."
+    )
+    assert contents[0].role == "user"
+    assert contents[1].role == "model"
+
+
+@patch("providers.googleai.genai.Client")
+def test_googleai_rejects_empty_messages(
+    mock_client_class,
+):
+    provider = GoogleAIProvider(
+        api_key="test-key",
+        model="gemma-4-31b-it",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="At least one non-empty message",
+    ):
+        provider.chat([])
+
+
+@patch("providers.googleai.genai.Client")
+def test_googleai_rejects_empty_system_message(
+    mock_client_class,
+):
+    provider = GoogleAIProvider(
+        api_key="test-key",
+        model="gemma-4-31b-it",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="At least one non-empty message",
+    ):
+        provider.chat(
+            [
+                {
+                    "role": "system",
+                    "content": "   ",
+                }
+            ]
+        )
+
+
 @pytest.mark.integration
 def test_googleai_live_smoke():
     api_key = os.getenv("GOOGLE_AI_API_KEY")

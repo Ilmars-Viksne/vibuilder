@@ -89,13 +89,23 @@ class GoogleAIProvider(BaseProvider):
         """
         Convert OpenAI-style messages to Google Gen AI contents.
 
-        System messages become a system instruction. User and
-        assistant messages retain their conversational roles.
+        For mixed conversations, system messages become the system
+        instruction, user messages retain the "user" role, and assistant
+        messages become the Google "model" role.
+
+        Vibuilder also uses system-only requests in some components,
+        including Coder. Because the Google API requires request contents,
+        a system-only request is promoted to a user content message.
         """
         system_parts: list[str] = []
         contents: list[types.Content] = []
 
         for message in messages:
+            if not isinstance(message, dict):
+                raise ValueError(
+                    "Each Google AI message must be a dictionary."
+                )
+
             role = message.get("role")
             content = message.get("content", "")
 
@@ -118,6 +128,9 @@ class GoogleAIProvider(BaseProvider):
                     f"Unsupported message role: {role!r}"
                 )
 
+            if not content.strip():
+                continue
+
             contents.append(
                 types.Content(
                     role=google_role,
@@ -127,16 +140,32 @@ class GoogleAIProvider(BaseProvider):
                 )
             )
 
-        if not contents:
-            raise ValueError(
-                "At least one user or assistant message is required."
-            )
-
         system_instruction = (
             "\n\n".join(system_parts)
             if system_parts
             else None
         )
+
+        if not contents:
+            if system_instruction:
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_text(
+                                text=system_instruction
+                            )
+                        ],
+                    )
+                )
+
+                # Avoid sending the same prompt both as a system
+                # instruction and as user content.
+                system_instruction = None
+            else:
+                raise ValueError(
+                    "At least one non-empty message is required."
+                )
 
         return system_instruction, contents
 
