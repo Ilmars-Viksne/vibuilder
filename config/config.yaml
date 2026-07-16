@@ -9,6 +9,10 @@ providers:
     model: openai/gpt-oss-120b:free
     api_key_env: OPENROUTER_API_KEY
 
+  googleai:
+    model: gemma-4-31b-it
+    api_key_env: GOOGLE_AI_API_KEY
+
   ollama:
     model: qwen2.5-coder:32b
     base_url: http://localhost:11434

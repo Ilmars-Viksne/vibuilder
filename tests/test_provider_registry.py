@@ -17,3 +17,23 @@ def test_provider_registration():
 def test_unknown_provider():
     with pytest.raises(ValueError):
         ProviderRegistry.create("unknown")
+
+
+def test_googleai_provider_is_registered():
+    import providers.googleai  # noqa: F401
+
+    assert "googleai" in ProviderRegistry.available()
+
+
+def test_googleai_provider_creation():
+    from unittest.mock import patch
+    import providers.googleai  # noqa: F401
+
+    with patch("providers.googleai.genai.Client"):
+        provider = ProviderRegistry.create(
+            "googleai",
+            model="gemma-4-31b-it",
+            api_key="test-key",
+        )
+
+        assert provider.model == "gemma-4-31b-it"

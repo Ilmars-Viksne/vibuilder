@@ -25,6 +25,7 @@ from tools.test_runner import TestRunner
 from workspace.manager import WorkspaceManager
 
 # Import provider modules to trigger registration.
+import providers.googleai  # noqa: F401
 import providers.lmstudio  # noqa: F401
 import providers.mock  # noqa: F401
 import providers.nim  # noqa: F401
@@ -155,7 +156,10 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--provider",
         type=str,
-        help="Override provider, e.g. mock, nim, ollama",
+        help=(
+            "Override provider, e.g. mock, nim, googleai, "
+            "openrouter, ollama, or lmstudio"
+        ),
     )
     parser.add_argument(
         "--max-steps",

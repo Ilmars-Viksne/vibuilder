@@ -1,4 +1,5 @@
 openai
+google-genai>=2.12,<3
 requests
 pyyaml
 pytest
