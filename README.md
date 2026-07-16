@@ -1,6 +1,6 @@
 # Vibuilder: Autonomous Coding Agent
 
-Vibuilder is a lightweight, provider-agnostic autonomous coding agent that works with NVIDIA NIM, OpenRouter, Ollama, LM Studio, and other OpenAI-compatible endpoints.
+Vibuilder is a lightweight, provider-agnostic autonomous coding agent that works with NVIDIA NIM, Google AI, OpenRouter, Ollama, LM Studio, and other supported endpoints.
 
 ## Features
 
@@ -66,6 +66,10 @@ providers:
     model: anthropic/claude-3.5-sonnet
     api_key_env: OPENROUTER_API_KEY
 
+  googleai:
+    model: gemma-4-31b-it
+    api_key_env: GOOGLE_AI_API_KEY
+
   ollama:
     model: qwen2.5-coder:32b
     base_url: http://localhost:11434
@@ -77,6 +81,39 @@ providers:
 
   mock:
     model: mock-model
+```
+
+### Google AI with Gemma 4
+
+Create an API key in Google AI Studio and add it to `.env`:
+
+```dotenv
+GOOGLE_AI_API_KEY=your_google_ai_api_key
+```
+
+Configure the provider in config/config.yaml:
+
+```yaml
+providers:
+  googleai:
+    model: gemma-4-31b-it
+    api_key_env: GOOGLE_AI_API_KEY
+```
+
+Run Vibuilder with Google AI:
+
+```bash
+python main.py \
+  --goal "Create a tested Python CLI calculator" \
+  --provider googleai \
+  --workspace projects/calculator \
+  --max-steps 30
+```
+
+Alternative hosted Gemma 4 model:
+
+```yaml
+model: gemma-4-26b-a4b-it
 ```
 
 ## Usage

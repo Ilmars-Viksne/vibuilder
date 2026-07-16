@@ -15,6 +15,10 @@ providers:
     model: anthropic/claude-3.5-sonnet
     api_key_env: OPENROUTER_API_KEY
 
+  googleai:
+    model: gemma-4-31b-it
+    api_key_env: GOOGLE_AI_API_KEY
+
   mock:
     model: mock-model
 """
@@ -67,3 +71,35 @@ def test_get_provider_kwargs_requires_api_key(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError):
         settings.get_provider_kwargs("nim")
+
+
+def test_get_googleai_provider_kwargs(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "GOOGLE_AI_API_KEY",
+        "google-test-key",
+    )
+
+    settings = Settings(write_config(tmp_path))
+
+    kwargs = settings.get_provider_kwargs("googleai")
+
+    assert kwargs["model"] == "gemma-4-31b-it"
+    assert kwargs["api_key"] == "google-test-key"
+
+
+def test_googleai_requires_api_key(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        "GOOGLE_AI_API_KEY",
+        raising=False,
+    )
+
+    settings = Settings(write_config(tmp_path))
+
+    with pytest.raises(ValueError):
+        settings.get_provider_kwargs("googleai")
