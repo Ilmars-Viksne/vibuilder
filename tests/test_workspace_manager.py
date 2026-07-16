@@ -137,3 +137,106 @@ def test_workspace_argument_accepts_custom_path(tmp_path):
     )
 
     assert args.workspace == str(selected)
+
+
+def test_workspace_reads_file(tmp_path):
+    workspace = WorkspaceManager(
+        root=tmp_path
+    )
+
+    target = tmp_path / "calculator.py"
+    target.write_text(
+        "print('hello')",
+        encoding="utf-8",
+    )
+
+    assert workspace.read_file(
+        "calculator.py"
+    ) == "print('hello')"
+
+
+def test_workspace_read_rejects_missing_file(
+    tmp_path,
+):
+    workspace = WorkspaceManager(
+        root=tmp_path
+    )
+
+    with pytest.raises(FileNotFoundError):
+        workspace.read_file("missing.py")
+
+
+def test_workspace_read_rejects_directory(
+    tmp_path,
+):
+    workspace = WorkspaceManager(
+        root=tmp_path
+    )
+
+    directory = tmp_path / "src"
+    directory.mkdir()
+
+    with pytest.raises(ValueError):
+        workspace.read_file("src")
+
+
+def test_workspace_lists_directory(tmp_path):
+    workspace = WorkspaceManager(
+        root=tmp_path
+    )
+
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "calculator.py").write_text(
+        "print('hello')",
+        encoding="utf-8",
+    )
+
+    entries = workspace.list_directory(".")
+
+    assert {
+        "name": "tests",
+        "type": "directory",
+    } in entries
+
+    assert {
+        "name": "calculator.py",
+        "type": "file",
+    } in entries
+
+
+def test_workspace_lists_directories_before_files(
+    tmp_path,
+):
+    workspace = WorkspaceManager(root=tmp_path)
+
+    (tmp_path / "zeta.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (tmp_path / "Alpha.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (tmp_path / "z_tests").mkdir()
+    (tmp_path / "A_src").mkdir()
+
+    entries = workspace.list_directory(".")
+
+    assert entries == [
+        {
+            "name": "A_src",
+            "type": "directory",
+        },
+        {
+            "name": "z_tests",
+            "type": "directory",
+        },
+        {
+            "name": "Alpha.py",
+            "type": "file",
+        },
+        {
+            "name": "zeta.py",
+            "type": "file",
+        },
+    ]

@@ -125,6 +125,28 @@ Return ONLY valid JSON matching one allowed action schema.
 Do not include Markdown fences like ```json.
 Do not include prose, explanations, or comments.
 
+Allowed actions:
+- {{"action": "create_folder", "path": "path/to/dir"}}
+- {{"action": "create_file", "path": "path/to/file", "content": "file content"}}
+- {{"action": "edit_file", "path": "path/to/file", "content": "new content"}}
+- {{"action": "replace_text", "path": "path/to/file", "search": "old text", "replace": "new text"}}
+- {{"action": "list_directory", "path": "path/to/dir"}}
+- {{"action": "read_file", "path": "path/to/file"}}
+- {{"action": "run_python", "path": "path/to/script.py"}}
+- {{"action": "run_tests"}}
+- {{"action": "git_init"}}
+- {{"action": "git_commit", "message": "commit message"}}
+- {{"action": "finish"}}
+
+Tool usage rules:
+- Use list_directory to inspect a directory.
+- Use read_file to inspect an existing text file.
+- Read an existing file before editing it.
+- run_python executes an existing .py file in the workspace.
+- Use run_tests to execute the test suite.
+- Never place shell commands such as ls, dir, cat, type, pwd, or pytest in a path field.
+- All paths must be relative to the workspace.
+
 Critical JSON formatting rules:
 - The full response must be exactly one JSON object.
 - All string values must use valid JSON escaping.
@@ -133,17 +155,6 @@ Critical JSON formatting rules:
 - Do not use Python triple-quoted strings.
 - Do not use trailing commas.
 - If creating a file, put the entire file content in the JSON "content" string.
-
-Allowed actions:
-- {{"action": "create_folder", "path": "path/to/dir"}}
-- {{"action": "create_file", "path": "path/to/file", "content": "file content"}}
-- {{"action": "edit_file", "path": "path/to/file", "content": "new content"}}
-- {{"action": "replace_text", "path": "path/to/file", "search": "old text", "replace": "new text"}}
-- {{"action": "run_python", "path": "path/to/script.py"}}
-- {{"action": "run_tests"}}
-- {{"action": "git_init"}}
-- {{"action": "git_commit", "message": "commit message"}}
-- {{"action": "finish"}}
 """.strip()
 
     def _format_feedback(self, result: Any) -> str:

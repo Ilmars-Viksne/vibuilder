@@ -49,8 +49,51 @@ class WorkspaceManager:
         return file_path
 
     def read_file(self, path: str | Path) -> str:
-        file_path = self.resolve(path)
-        return file_path.read_text(encoding="utf-8")
+        resolved = self.resolve(path)
+
+        if not resolved.exists():
+            raise FileNotFoundError(
+                f"File not found: {resolved}"
+            )
+
+        if not resolved.is_file():
+            raise ValueError(
+                f"Path is not a file: {resolved}"
+            )
+
+        return resolved.read_text(encoding="utf-8")
+
+    def list_directory(self, path: str | Path = ".") -> list[dict[str, str]]:
+        resolved = self.resolve(path)
+
+        if not resolved.exists():
+            raise FileNotFoundError(
+                f"Directory not found: {resolved}"
+            )
+
+        if not resolved.is_dir():
+            raise ValueError(
+                f"Path is not a directory: {resolved}"
+            )
+
+        children = sorted(
+            resolved.iterdir(),
+            key=lambda item: (
+                not item.is_dir(),
+                item.name.lower(),
+            ),
+        )
+
+        entries: list[dict[str, str]] = []
+        for child in children:
+            entries.append(
+                {
+                    "name": child.name,
+                    "type": "directory" if child.is_dir() else "file",
+                }
+            )
+
+        return entries
 
     def replace_text(self, path: str | Path, search: str, replace: str) -> Path:
         file_path = self.resolve(path)

@@ -91,11 +91,20 @@ The JSON object must match exactly one of these schemas:
 {{"action": "create_file", "path": "path/to/file", "content": "file content"}}
 {{"action": "edit_file", "path": "path/to/file", "content": "new content"}}
 {{"action": "replace_text", "path": "path/to/file", "search": "old text", "replace": "new text"}}
+{{"action": "list_directory", "path": "path/to/dir"}}
+{{"action": "read_file", "path": "path/to/file"}}
 {{"action": "run_python", "path": "path/to/script.py"}}
 {{"action": "run_tests"}}
 {{"action": "git_init"}}
 {{"action": "git_commit", "message": "commit message"}}
 {{"action": "finish"}}
+
+Tool rules:
+- Use list_directory instead of ls or dir.
+- Use read_file instead of cat or type.
+- run_python accepts only an existing .py script path.
+- Use run_tests to run pytest.
+- Never place a shell command in a path field.
 
 Important JSON rules:
 - Escape all inner double quotes inside string values.
