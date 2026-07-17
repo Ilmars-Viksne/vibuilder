@@ -1,4 +1,4 @@
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 
 
 ALLOWED_ACTIONS = {
@@ -6,6 +6,8 @@ ALLOWED_ACTIONS = {
     "create_file": {"path", "content"},
     "edit_file": {"path", "content"},
     "replace_text": {"path", "search", "replace"},
+    "list_directory": {"path"},
+    "read_file": {"path"},
     "run_python": {"path"},
     "run_tests": set(),
     "git_init": set(),
@@ -46,6 +48,11 @@ def validate_action(action: dict) -> None:
         if field in action:
             _validate_relative_safe_path(action[field])
 
+    if action_name == "run_python":
+        path = PurePosixPath(action["path"])
+        if path.suffix.lower() != ".py":
+            raise ValueError("run_python path must end with .py")
+
     unexpected = set(action) - required_fields - {"action"}
     if unexpected:
         raise ValueError(
@@ -55,16 +62,24 @@ def validate_action(action: dict) -> None:
 
 
 def _validate_relative_safe_path(path: str) -> None:
-    if not path:
+    if not isinstance(path, str):
+        raise ValueError("Path must be a string")
+
+    if not path.strip():
         raise ValueError("Path must not be empty")
 
-    pure_path = PurePosixPath(path)
+    posix_path = PurePosixPath(path)
+    windows_path = PureWindowsPath(path)
 
-    if pure_path.is_absolute():
-        raise ValueError(f"Absolute paths are not allowed: {path}")
+    if (
+        posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or bool(windows_path.drive)
+    ):
+        raise ValueError("Absolute paths are not allowed")
 
-    if any(part == ".." for part in pure_path.parts):
-        raise ValueError(f"Path traversal is not allowed: {path}")
-
-    if any(part == "" for part in pure_path.parts):
-        raise ValueError(f"Invalid path: {path}")
+    if (
+        ".." in posix_path.parts
+        or ".." in windows_path.parts
+    ):
+        raise ValueError("Path traversal is not allowed")

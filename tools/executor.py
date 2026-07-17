@@ -4,6 +4,8 @@ from agent.validation import validate_action
 
 logger = logging.getLogger(__name__)
 
+MAX_READ_FILE_CHARS = 100_000
+
 
 class ToolExecutor:
     def __init__(self, workspace, runner, tests, git):
@@ -53,6 +55,28 @@ class ToolExecutor:
                     "success": True,
                     "action": action_name,
                     "path": str(path),
+                }
+
+            if action_name == "list_directory":
+                entries = self.workspace.list_directory(action["path"])
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "path": action["path"],
+                    "entries": entries,
+                }
+
+            if action_name == "read_file":
+                content = self.workspace.read_file(action["path"])
+                truncated = len(content) > MAX_READ_FILE_CHARS
+                if truncated:
+                    content = content[:MAX_READ_FILE_CHARS]
+                return {
+                    "success": True,
+                    "action": action_name,
+                    "path": action["path"],
+                    "content": content,
+                    "truncated": truncated,
                 }
 
             if action_name == "run_python":
